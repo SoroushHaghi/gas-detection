@@ -1,0 +1,25 @@
+# config.yml - Project Command Center
+
+paths:
+  raw_data: 'data/raw/gas_data.csv' # Path to the raw UCI dataset
+  processed_data: 'data/processed/data_processed.csv'
+  golden_dataset: 'data/processed/golden_validation_set.csv'
+  scaler_output: 'models/scaler.pkl' # or .joblib
+  model_output: 'models/champion_model.h5'
+  tflite_output: 'models/champion_model.tflite'
+  model_info: 'models/model_info.json'
+  log_file: 'logs/app.log'
+
+data:
+  window_size: 50         # Memory (timesteps) for the GRU
+  denoising_window: 3     # Noise filter strength (moving average)
+
+training:
+  high_risk_gases: 
+    - "Ammonia"
+    - "Toluene"
+  recall_threshold: 0.95  # Minimum acceptable recall for high-risk gases
+
+mloops: # MLOps Triggers
+  data_threshold_mb: 5    # Data volume threshold for retraining
+  confidence_threshold: 0.80 # Model confidence threshold for critical alerts
