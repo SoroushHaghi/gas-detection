@@ -1,0 +1,97 @@
+# src/gas_detection/data/process_data.py
+
+import pandas as pd
+import numpy as np
+import joblib
+import sys
+from pathlib import Path
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.datasets import load_svmlight_file
+
+# --- Add Project Root to sys.path ---
+try:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+except NameError:
+    PROJECT_ROOT = Path.cwd()
+
+sys.path.append(str(PROJECT_ROOT))
+# ------------------------------------
+
+from src.gas_detection.config import load_config
+
+# --- Columns to IGNORE during scaling ---
+IGNORE_COLS = ['target']
+# -----------------------------------------
+
+def main():
+    """
+    Main data processing function: Load LibSVM, Denoise, Scale, and Save.
+    """
+    print("Starting data processing script (LibSVM version)...")
+    
+    # 1. Load Config
+    CONFIG_PATH = PROJECT_ROOT / 'config.yml'
+    config = load_config(CONFIG_PATH)
+    
+    # --- Define paths from config ---
+    raw_path = PROJECT_ROOT / config['paths']['raw_data']
+    processed_path = PROJECT_ROOT / config['paths']['processed_data']
+    scaler_path = PROJECT_ROOT / config['paths']['scaler_output']
+    
+    # --- Ensure output directories exist ---
+    processed_path.parent.mkdir(parents=True, exist_ok=True)
+    scaler_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # 2. Read Raw LibSVM Dataset
+    print(f"Loading raw LibSVM data from {raw_path}...")
+    X_sparse, y_labels = load_svmlight_file(str(raw_path))
+    
+    # Convert sparse matrix to dense array for processing
+    X_dense = X_sparse.toarray()
+    
+    # Get number of features
+    n_features = X_dense.shape[1]
+    print(f"Loaded data with {n_features} features.")
+    
+    # 3. Create DataFrame
+    # Generate column names S1, S2, ..., S(n_features)
+    sensor_cols = [f'S{i+1}' for i in range(n_features)]
+    
+    df = pd.DataFrame(X_dense, columns=sensor_cols)
+    df['target'] = y_labels
+    print(f"Identified {len(sensor_cols)} sensor columns.")
+    # 4. Denoising (Apply only to sensor columns)
+    denoising_window = config['data']['denoising_window']
+    print(f"Applying rolling average with window={denoising_window} to sensor columns...")
+    
+    df[sensor_cols] = df[sensor_cols].rolling(window=denoising_window).mean()
+
+    # 5. Drop NaNs (created by rolling average)
+    print("Dropping NaN values...")
+    df = df.dropna().reset_index(drop=True)
+    
+    # 6. Scaling (Apply only to sensor columns)
+    print("Initializing and fitting MinMaxScaler on sensor columns...")
+    scaler = MinMaxScaler()
+    
+    # Fit_transform *only* the sensor columns
+    scaled_sensors = scaler.fit_transform(df[sensor_cols])
+    
+    # Create the final processed DataFrame
+    df_processed = pd.DataFrame(scaled_sensors, columns=sensor_cols)
+    df_processed['target'] = df['target'] # Add target column back
+    
+    # 7. Save Processed Data
+    print(f"Saving processed data to {processed_path}...")
+    df_processed.to_csv(processed_path, index=False)
+    
+    # 8. Save Scaler (The MLOps artifact)
+    print(f"Saving scaler object to {scaler_path}...")
+    joblib.dump(scaler, scaler_path)
+    
+    print("\nData processing complete!")
+    print(f"  -> Processed data saved: {processed_path}")
+    print(f"  -> Scaler object saved: {scaler_path}")
+
+if __name__ == '__main__':
+    main()
