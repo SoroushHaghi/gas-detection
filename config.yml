@@ -11,8 +11,10 @@ paths:
   log_file: 'logs/app.log'
 
 data:
-  window_size: 50         # Memory (timesteps) for the GRU
   denoising_window: 3     # Noise filter strength (moving average)
+
+feature_engineering:
+  window_size: 50         # Memory (timesteps) for the GRU
 
 training:
   high_risk_gases: 
