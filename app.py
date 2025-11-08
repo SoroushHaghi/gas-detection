@@ -1,4 +1,4 @@
-# app.py (Random Forest Version)
+# app.py (V3: Probability Chart Version)
 
 import streamlit as st
 import pandas as pd
@@ -21,21 +21,20 @@ from src.gas_detection.config import load_config
 # --- Session State Initialization ---
 if 'sim_index' not in st.session_state:
     st.session_state.sim_index = 0
-if 'chart_data' not in st.session_state:
-    st.session_state.chart_data = pd.DataFrame(columns=['S1'])
 if 'auto_play' not in st.session_state:
     st.session_state.auto_play = False
 if 'prediction_log' not in st.session_state:
     st.session_state.prediction_log = []
+# NEW: Chart data now holds probabilities for all 6 classes
+if 'chart_data' not in st.session_state:
+    st.session_state.chart_data = pd.DataFrame(columns=["Gas 1", "Gas 2", "Gas 3", "Gas 4", "Gas 5", "Gas 6"])
 
 # --- Caching Functions ---
 @st.cache_resource
 def load_model_and_scaler():
     try:
         config = load_config()
-        # Load scaler (still needed)
         scaler = joblib.load(config['paths']['scaler_output'])
-        # Load RandomForest model (.joblib)
         model_path = (PROJECT_ROOT / config['paths']['model_output']).with_suffix('.joblib')
         model = joblib.load(model_path)
         return model, scaler, config
@@ -52,30 +51,27 @@ def load_simulation_data():
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
 
-# --- Inference Helper (Random Forest) ---
+# --- Inference Helper (Returns ALL probabilities) ---
 def run_inference(window_data, scaler, model):
-    # 1. Scale
-    # scaled_window = scaler.transform(window_data) # BUG: Data is already scaled
-    
-    # 2. Create Statistical Features (using the pre-scaled window_data)
+    scaled_window = window_data # Data is already scaled
     features = np.concatenate([
-        np.mean(window_data, axis=0),
-        np.std(window_data, axis=0),
-        np.min(window_data, axis=0),
-        np.max(window_data, axis=0)
-    ]).reshape(1, -1) # Reshape to (1, 512)
-
-    # 3. Run inference
-    pred_cls = model.predict(features)[0]
-    pred_proba = model.predict_proba(features)[0]
+        np.mean(scaled_window, axis=0),
+        np.std(scaled_window, axis=0),
+        np.min(scaled_window, axis=0),
+        np.max(scaled_window, axis=0)
+    ]).reshape(1, -1)
+    
+    # Get all probabilities instead of just one class
+    pred_proba = model.predict_proba(features)[0] 
+    predicted_class = np.argmax(pred_proba)
     confidence = np.max(pred_proba)
         
-    return pred_cls, confidence
+    return predicted_class, confidence, pred_proba # Return all 6 probabilities
 
 # --- Main App Layout ---
 def main():
-    st.set_page_config(page_title="Gas Dashboard V2 (RF)", layout="wide")
-    st.title("Gas Detection Dashboard 🚨 (V2: Random Forest)")
+    st.set_page_config(page_title="Gas Dashboard V3 (Probs)", layout="wide")
+    st.title("Gas Detection Dashboard 🚨 (V3: Probability Plot)")
     
     model, scaler, config = load_model_and_scaler()
     sim_df = load_simulation_data()
@@ -84,15 +80,20 @@ def main():
         st.error("Critical resources failed to load. App cannot start.")
         st.stop()
 
+    # --- Sidebar ---
     st.sidebar.header("Configuration & Status")
     st.sidebar.success("System Online (Random Forest) 🚀")
     speed = st.sidebar.slider("Simulation Speed (delay)", 0.01, 0.5, 0.05)
+    # Define Alert Threshold
+    alert_threshold = st.sidebar.slider("Alert Threshold", 0.5, 1.0, 0.9, 0.05)
     st.sidebar.markdown("---")
     st.sidebar.write(f"**Current Time Step:** t={st.session_state.sim_index}")
 
+    # --- Main Area ---
     col1, col2 = st.columns([2, 1]) 
     with col1:
-        st.subheader("Live Sensor Data (S1):")
+        st.subheader("Live Model Confidence (All Gases):")
+        # NEW: Chart now plots the probabilities dataframe
         chart_ph = st.line_chart(st.session_state.chart_data, height=400)
     with col2:
         st.subheader("Prediction Log 📜")
@@ -102,6 +103,9 @@ def main():
                 log_container.error(msg_text)
             else:
                 log_container.info(msg_text)
+    
+    # NEW: Alert placeholder at the top
+    alert_placeholder = st.empty()
 
     def advance_simulation():
         window_size = config['feature_engineering']['window_size']
@@ -110,22 +114,31 @@ def main():
         if current_idx < len(sim_df) - window_size:
             window_df = sim_df.iloc[current_idx : current_idx + window_size]
             feats = window_df.drop(columns=['target']) if 'target' in window_df.columns else window_df
-            
             true_label_val = int(sim_df.iloc[current_idx + window_size - 1]['target'])
             
-            cls, conf = run_inference(feats, scaler, model)
+            # 1. Run Inference (get all probabilities)
+            pred_cls, conf, all_probs = run_inference(feats, scaler, model)
             
             lbls = {0:"Gas 1", 1:"Gas 2", 2:"Gas 3", 3:"Gas 4", 4:"Gas 5", 5:"Gas 6"}
-            pred_res = lbls.get(cls, "Unknown")
+            pred_res = lbls.get(pred_cls, "Unknown")
             true_res = lbls.get(true_label_val - 1, "Unknown")
             
+            # 2. Create Log Message
             msg_text = f"[t={current_idx}] PREDICTED: {pred_res} | ACTUAL: {true_res} (Conf: {conf*100:.1f}%)"
             msg_type = "info" if pred_res == true_res else "error"
             st.session_state.prediction_log.insert(0, (msg_type, msg_text))
             
-            new_row = pd.DataFrame({'S1': [sim_df.iloc[current_idx + window_size - 1]['S1']]})
-            chart_ph.add_rows(new_row)
-            st.session_state.chart_data = pd.concat([st.session_state.chart_data, new_row], ignore_index=True)
+            # 3. Update Chart
+            # Create a new row with all 6 probabilities
+            new_prob_row = pd.DataFrame([all_probs], columns=lbls.values())
+            chart_ph.add_rows(new_prob_row)
+            st.session_state.chart_data = pd.concat([st.session_state.chart_data, new_prob_row], ignore_index=True)
+
+            # 4. Check for High Alerts
+            if conf > alert_threshold:
+                 alert_placeholder.error(f"🚨 HIGH ALERT: Detected {pred_res} with {conf*100:.1f}% confidence!")
+            else:
+                 alert_placeholder.empty() # Clear alert if confidence drops
             
             st.session_state.sim_index += 1
             return True
@@ -134,6 +147,7 @@ def main():
             st.session_state.auto_play = False
             return False
 
+    # --- Controls ---
     st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -146,14 +160,14 @@ def main():
     with c3:
         if st.button("🔄 Reset (t=0)", use_container_width=True):
             st.session_state.sim_index = 0
-            st.session_state.chart_data = pd.DataFrame(columns=['S1'])
+            st.session_state.chart_data = pd.DataFrame(columns=lbls.values())
             st.session_state.auto_play = False
             st.session_state.prediction_log = []
             st.rerun()
     with c4:
         if st.button("⏩ Jump to t=300", use_container_width=True, type="primary"):
              st.session_state.sim_index = 300
-             st.session_state.chart_data = pd.DataFrame(columns=['S1'])
+             st.session_state.chart_data = pd.DataFrame(columns=lbls.values())
              st.session_state.prediction_log = []
              st.rerun()
 
