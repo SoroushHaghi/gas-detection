@@ -1,8 +1,7 @@
 # Gas Detection MLOps Pipeline (V4 - RandomForest)
 
-## 🚀 Live Dashboard (In Progress)
-
-**[Your Live Streamlit Dashboard Link Will Go Here]**
+## 🚀 Live Dashboard
+[**Click Here to View the Live Project**](https://gas-detection-tubs.streamlit.app)
 
 ---
 
