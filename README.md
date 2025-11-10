@@ -21,8 +21,8 @@ This project was a practical exercise in MLOps, demonstrating not just model bui
 ### V1 (The Failure): 1D-CNN on Raw Time-Series
 The initial approach was to use a Deep Learning model (1D-CNN) directly on the raw, windowed sensor data (`(50, 128)` tensors).
 
-* **Result:** The model completely failed. It "collapsed" and predicted **"Gas 1"** for every single time step, regardless of the actual gas present.
-* **Diagnosis:** The 128 features contained too much noise and not enough clear signal for the CNN to learn effectively.
+*   **Result:** The model completely failed. It "collapsed" and predicted **"Gas 1"** for every single time step, regardless of the actual gas present.
+*   **Diagnosis:** The 128 features contained too much noise and not enough clear signal for the CNN to learn effectively.
 
 ### V2/V3/V4 (The Pivot & Success): RandomForest on Statistical Features
 Based on the V1 failure, we pivoted the entire strategy:
@@ -36,10 +36,10 @@ This pivot demonstrates a key MLOps principle: **Feature Engineering often beats
 
 ## 3. Technology Stack
 
-* **Dashboard:** Streamlit
-* **Model:** Scikit-learn (`RandomForestClassifier`)
-* **Data Processing:** Pandas, NumPy
-* **Core Libraries:** Joblib, PyYAML
+*   **Dashboard:** Streamlit
+*   **Model:** Scikit-learn (`RandomForestClassifier`)
+*   **Data Processing:** Pandas, NumPy
+*   **Core Libraries:** Joblib, PyYAML
 
 ---
 
@@ -75,3 +75,5 @@ This pivot demonstrates a key MLOps principle: **Feature Engineering often beats
 ## 5. Project Structure (V4)
 
 gas_detection/ ├── .gitignore ├── app.py # The final Streamlit dashboard (V4) ├── config.yml # Project configuration (paths, parameters) ├── data/ │ ├── processed/ │ │ ├── data_processed.csv # Scaled sensor data (output of Day 3) │ │ ├── X_train.npy # Statistical features for training (output of V4 Feature Eng) │ │ └── y_train.npy # Labels for training │ └── raw/ │ └── gas_data.csv # The raw, combined LibSVM dataset ├── models/ │ ├── champion_model.joblib # The trained RandomForest model (V4) │ └── scaler.pkl # The StandardScaler (from Day 3) ├── notebooks/ │ └── eda_analysis.py # Exploratory Data Analysis script ├── README.md # This file ├── requirements.txt # Python dependencies └── src/ └── gas_detection/ ├── init.py ├── config.py # Config loader utility ├── features/ │ └── build_features.py # V4 Feature Engineering (Statistical) └── models/ └── train_model.py # V4 Model Training (RandomForest)
+
+<!-- Temporary change for API testing -->
