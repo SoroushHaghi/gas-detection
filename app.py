@@ -1,4 +1,4 @@
-# app.py (V-FINAL: Shuffled Simulation + Real Names)
+# app.py (V5: Final Path Fix + Shuffle + Real Names)
 
 import streamlit as st
 import pandas as pd
@@ -37,13 +37,16 @@ if 'prediction_log' not in st.session_state:
     st.session_state.prediction_log = []
 
 # --- Caching Functions ---
-@st.cache_resource
+ @st.cache_resource
 def load_model_and_scaler():
     try:
         config = load_config()
-        # Load from 'artifacts' directory
-        scaler_path = PROJECT_ROOT / 'artifacts' / 'scaler.pkl'
-        model_path = PROJECT_ROOT / 'artifacts' / 'champion_model.joblib'
+        
+        # --- (PATH FIX V6) ---
+        # Load from 'models/' directory, not 'artifacts/'
+        scaler_path = PROJECT_ROOT / 'models' / 'scaler.pkl'
+        model_path = PROJECT_ROOT / 'models' / 'champion_model.joblib'
+        # --- (END PATH FIX V6) ---
         
         scaler = joblib.load(scaler_path)
         model = joblib.load(model_path)
@@ -53,8 +56,8 @@ def load_model_and_scaler():
         st.error(f"Attempted paths: {scaler_path} and {model_path}")
         return None, None, None
 
-@st.cache_data
-def load_simulation_data(config_path):
+ @st.cache_data
+def load_simulation_data(): # <-- (FIX V6: Removed bad parameter)
     try:
         config = load_config()
         df = pd.read_csv(config['paths']['processed_data'])
@@ -91,9 +94,7 @@ def main():
     st.title("Gas Detection Dashboard 🚨 (Final: Shuffled Simulation)")
     
     model, scaler, config = load_model_and_scaler()
-    
-    # Pass config path to cached function
-    sim_df = load_simulation_data(PROJECT_ROOT / 'config.yml')
+    sim_df = load_simulation_data() # <-- (FIX V6: Call without parameter)
 
     if sim_df.empty or model is None:
         st.error("Critical resources failed to load. App cannot start.")
@@ -113,9 +114,7 @@ def main():
         st.subheader("Live Model Confidence (All Gases):")
         st.write("") # Add spacing
         
-        # Bar chart placeholder
         chart_placeholder = st.empty()
-        # Initialize with an empty chart using real gas names
         chart_placeholder.bar_chart(pd.DataFrame({'Gas': CLASS_LABELS.values(), 'Confidence': [0]*6}), x='Gas', y='Confidence')
             
     with col2:
@@ -130,7 +129,7 @@ def main():
 
     # --- Simulation Logic Function ---
     def advance_simulation():
-        # Read the correct window_size path
+        # (FIX V6: Read the correct window_size path)
         window_size = config['feature_engineering']['window_size']
         current_idx = st.session_state.sim_index
         
@@ -141,7 +140,6 @@ def main():
             
             pred_cls, conf, all_probs = run_inference(feats, scaler, model)
             
-            # Use real names from CLASS_LABELS
             pred_res = CLASS_LABELS.get(pred_cls, "Unknown")
             true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown") # (true_label_val 1-6 -> index 0-5)
             
@@ -179,7 +177,7 @@ def main():
             st.session_state.sim_index = 0
             st.session_state.auto_play = False
             st.session_state.prediction_log = []
-            st.rerun() # Rerunning will use the same shuffled data
+            st.rerun()
     with c4:
         if st.button("⏩ Jump to t=300", use_container_width=True, type="primary"):
              st.session_state.sim_index = 300
