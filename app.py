@@ -1,4 +1,4 @@
-# app.py (V5: Live Bar Chart Version)
+# app.py (V-FINAL: Shuffled Simulation + Real Names)
 
 import streamlit as st
 import pandas as pd
@@ -18,8 +18,15 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.gas_detection.config import load_config
 
-# --- Class Labels Definition ---
-CLASS_LABELS = {0:"Gas 1", 1:"Gas 2", 2:"Gas 3", 3:"Gas 4", 4:"Gas 5", 5:"Gas 6"}
+# --- (V-FINAL UPDATE) Real Class Labels Definition ---
+CLASS_LABELS = {
+    0: "Ethanol",
+    1: "Ethylene",
+    2: "Ammonia",
+    3: "Acetone",
+    4: "Toluene",
+    5: "Benzene"
+}
 
 # --- Session State Initialization ---
 if 'sim_index' not in st.session_state:
@@ -34,19 +41,30 @@ if 'prediction_log' not in st.session_state:
 def load_model_and_scaler():
     try:
         config = load_config()
-        scaler = joblib.load(config['paths']['scaler_output'])
-        model_path = (PROJECT_ROOT / config['paths']['model_output']).with_suffix('.joblib')
+        # Load from 'artifacts' directory
+        scaler_path = PROJECT_ROOT / 'artifacts' / 'scaler.pkl'
+        model_path = PROJECT_ROOT / 'artifacts' / 'champion_model.joblib'
+        
+        scaler = joblib.load(scaler_path)
         model = joblib.load(model_path)
         return model, scaler, config
     except Exception as e:
         st.error(f"Error loading resources: {e}")
+        st.error(f"Attempted paths: {scaler_path} and {model_path}")
         return None, None, None
 
 @st.cache_data
-def load_simulation_data():
+def load_simulation_data(config_path):
     try:
         config = load_config()
-        return pd.read_csv(config['paths']['processed_data'])
+        df = pd.read_csv(config['paths']['processed_data'])
+        
+        # --- (V-FINAL SHUFFLE) ---
+        # Randomize the simulation data to make it realistic
+        df = df.sample(frac=1).reset_index(drop=True)
+        # --- End of Shuffle ---
+        
+        return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
@@ -69,11 +87,13 @@ def run_inference(window_data, scaler, model):
 
 # --- Main App Layout ---
 def main():
-    st.set_page_config(page_title="Gas Dashboard V5", layout="wide")
-    st.title("Gas Detection Dashboard 🚨 (V5: Live Bar Chart)")
+    st.set_page_config(page_title="Gas Dashboard (Final)", layout="wide")
+    st.title("Gas Detection Dashboard 🚨 (Final: Shuffled Simulation)")
     
     model, scaler, config = load_model_and_scaler()
-    sim_df = load_simulation_data()
+    
+    # Pass config path to cached function
+    sim_df = load_simulation_data(PROJECT_ROOT / 'config.yml')
 
     if sim_df.empty or model is None:
         st.error("Critical resources failed to load. App cannot start.")
@@ -85,7 +105,7 @@ def main():
     speed = st.sidebar.slider("Simulation Speed (delay)", 0.01, 0.5, 0.05, key="speed_slider")
     st.sidebar.markdown("---")
     st.sidebar.write(f"**Current Time Step:** t={st.session_state.sim_index}")
-    st.sidebar.info("The bar chart shows the model's confidence in *real-time*. The log shows the history.")
+    st.sidebar.info("The bar chart shows the model's confidence in real-time. The log shows the history.")
 
     # --- Main Area ---
     col1, col2 = st.columns([2, 1]) 
@@ -93,16 +113,15 @@ def main():
         st.subheader("Live Model Confidence (All Gases):")
         st.write("") # Add spacing
         
-        # --- NEW: Bar chart placeholder ---
-        # This will be updated on every step, not accumulated
+        # Bar chart placeholder
         chart_placeholder = st.empty()
-        # Initialize with an empty chart
+        # Initialize with an empty chart using real gas names
         chart_placeholder.bar_chart(pd.DataFrame({'Gas': CLASS_LABELS.values(), 'Confidence': [0]*6}), x='Gas', y='Confidence')
             
     with col2:
         st.subheader("Prediction Log 📜")
         st.write("") # Add spacing
-        log_container = st.container(height=450) # Made slightly taller
+        log_container = st.container(height=450)
         for msg_type, msg_text in st.session_state.prediction_log:
             if msg_type == 'error':
                 log_container.error(msg_text)
@@ -111,7 +130,8 @@ def main():
 
     # --- Simulation Logic Function ---
     def advance_simulation():
-        window_size = config['feature_engineering']['window_size'] # Will read '50'
+        # Read the correct window_size path
+        window_size = config['feature_engineering']['window_size']
         current_idx = st.session_state.sim_index
         
         if current_idx < len(sim_df) - window_size:
@@ -121,8 +141,9 @@ def main():
             
             pred_cls, conf, all_probs = run_inference(feats, scaler, model)
             
+            # Use real names from CLASS_LABELS
             pred_res = CLASS_LABELS.get(pred_cls, "Unknown")
-            true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown")
+            true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown") # (true_label_val 1-6 -> index 0-5)
             
             # 1. Create Log Message
             msg_text = f"[t={current_idx}] PREDICTED: {pred_res} | ACTUAL: {true_res} (Conf: {conf*100:.1f}%)"
@@ -144,7 +165,7 @@ def main():
             return False
 
     # --- Controls ---
-    st.markdown("---") # Extra spacer
+    st.markdown("---")
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         if st.button("▶ Next Step", use_container_width=True):
@@ -158,7 +179,7 @@ def main():
             st.session_state.sim_index = 0
             st.session_state.auto_play = False
             st.session_state.prediction_log = []
-            st.rerun()
+            st.rerun() # Rerunning will use the same shuffled data
     with c4:
         if st.button("⏩ Jump to t=300", use_container_width=True, type="primary"):
              st.session_state.sim_index = 300
