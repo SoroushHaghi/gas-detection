@@ -1,4 +1,4 @@
-# app.py (V6: Final Path Fix + Shuffle + Real Names)
+# app.py (V7: Removed Shuffle Bug, Restored Accuracy)
 
 import streamlit as st
 import pandas as pd
@@ -18,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.gas_detection.config import load_config
 
-# --- (V-FINAL UPDATE) Real Class Labels Definition ---
+# --- Real Class Labels Definition ---
 CLASS_LABELS = {
     0: "Ethanol",
     1: "Ethylene",
@@ -60,16 +60,15 @@ def load_simulation_data():
         config = load_config()
         df = pd.read_csv(config['paths']['processed_data'])
         
-        # --- (V-FINAL SHUFFLE) ---
-        # Randomize the simulation data to make it realistic
-        df = df.sample(frac=1).reset_index(drop=True)
-        # --- End of Shuffle ---
+        # --- (BUG FIX V7: The shuffle line that broke the model is REMOVED) ---
+        # df = df.sample(frac=1).reset_index(drop=True) # <-- THIS WAS THE BUG
         
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
 
+# --- Inference Helper (Returns ALL probabilities) ---
 def run_inference(window_data, scaler, model):
     scaled_window = window_data # Data is already scaled
     features = np.concatenate([
@@ -88,7 +87,7 @@ def run_inference(window_data, scaler, model):
 # --- Main App Layout ---
 def main():
     st.set_page_config(page_title="Gas Dashboard (Final)", layout="wide")
-    st.title("Gas Detection Dashboard 🚨 (Final: Shuffled Simulation)")
+    st.title("Gas Detection Dashboard 🚨 (Final: V7 Fixed)")
     
     model, scaler, config = load_model_and_scaler()
     sim_df = load_simulation_data() 
@@ -137,7 +136,7 @@ def main():
             pred_cls, conf, all_probs = run_inference(feats, scaler, model)
             
             pred_res = CLASS_LABELS.get(pred_cls, "Unknown")
-            true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown") # (true_label_val 1-6 -> index 0-5)
+            true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown")
             
             # 1. Create Log Message
             msg_text = f"[t={current_idx}] PREDICTED: {pred_res} | ACTUAL: {true_res} (Conf: {conf*100:.1f}%)"
