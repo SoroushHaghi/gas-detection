@@ -111,7 +111,7 @@ def main():
 
     # --- Simulation Logic Function ---
     def advance_simulation():
-        window_size = config['data']['window_size'] # Will read '50'
+        window_size = config['feature_engineering']['window_size'] # Will read '50'
         current_idx = st.session_state.sim_index
         
         if current_idx < len(sim_df) - window_size:
