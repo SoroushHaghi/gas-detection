@@ -37,7 +37,6 @@ if 'prediction_log' not in st.session_state:
     st.session_state.prediction_log = []
 
 # --- Caching Functions ---
-# (FIX: Ensure this function has NO indentation)
 @st.cache_resource
 def load_model_and_scaler():
     try:
@@ -55,7 +54,6 @@ def load_model_and_scaler():
         st.error(f"Attempted paths: {scaler_path} and {model_path}")
         return None, None, None
 
-# (FIX: Ensure this function has NO indentation)
 @st.cache_data
 def load_simulation_data():
     try:
@@ -72,7 +70,6 @@ def load_simulation_data():
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
 
-# (FIX: Ensure this function has NO indentation)
 def run_inference(window_data, scaler, model):
     scaled_window = window_data # Data is already scaled
     features = np.concatenate([
