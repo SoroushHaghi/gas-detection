@@ -1,4 +1,4 @@
-# app.py (V4: Final Polish with Toggles)
+# app.py (V5: Live Bar Chart Version)
 
 import streamlit as st
 import pandas as pd
@@ -19,7 +19,6 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.gas_detection.config import load_config
 
 # --- Class Labels Definition ---
-# We define this globally so all parts of the app can use it
 CLASS_LABELS = {0:"Gas 1", 1:"Gas 2", 2:"Gas 3", 3:"Gas 4", 4:"Gas 5", 5:"Gas 6"}
 
 # --- Session State Initialization ---
@@ -29,15 +28,9 @@ if 'auto_play' not in st.session_state:
     st.session_state.auto_play = False
 if 'prediction_log' not in st.session_state:
     st.session_state.prediction_log = []
-if 'chart_data' not in st.session_state:
-    st.session_state.chart_data = pd.DataFrame(columns=CLASS_LABELS.values())
-# Initialize toggles
-for gas_name in CLASS_LABELS.values():
-    if f"show_{gas_name}" not in st.session_state:
-        st.session_state[f"show_{gas_name}"] = True # Default to show all
 
 # --- Caching Functions ---
-@st.cache_resource
+ @st.cache_resource
 def load_model_and_scaler():
     try:
         config = load_config()
@@ -49,7 +42,7 @@ def load_model_and_scaler():
         st.error(f"Error loading resources: {e}")
         return None, None, None
 
-@st.cache_data
+ @st.cache_data
 def load_simulation_data():
     try:
         config = load_config()
@@ -76,8 +69,8 @@ def run_inference(window_data, scaler, model):
 
 # --- Main App Layout ---
 def main():
-    st.set_page_config(page_title="Gas Dashboard V4", layout="wide")
-    st.title("Gas Detection Dashboard 🚨 (V4: Final)")
+    st.set_page_config(page_title="Gas Dashboard V5", layout="wide")
+    st.title("Gas Detection Dashboard 🚨 (V5: Live Bar Chart)")
     
     model, scaler, config = load_model_and_scaler()
     sim_df = load_simulation_data()
@@ -91,16 +84,8 @@ def main():
     st.sidebar.success("System Online (Random Forest) 🚀")
     speed = st.sidebar.slider("Simulation Speed (delay)", 0.01, 0.5, 0.05, key="speed_slider")
     st.sidebar.markdown("---")
-    
-    # --- NEW: Toggle Buttons ---
-    st.sidebar.subheader("Toggle Gas Plots:")
-    visible_gases = []
-    for gas_name in CLASS_LABELS.values():
-        if st.sidebar.toggle(gas_name, key=f"show_{gas_name}"):
-            visible_gases.append(gas_name)
-    
-    st.sidebar.markdown("---")
     st.sidebar.write(f"**Current Time Step:** t={st.session_state.sim_index}")
+    st.sidebar.info("The bar chart shows the model's confidence in *real-time*. The log shows the history.")
 
     # --- Main Area ---
     col1, col2 = st.columns([2, 1]) 
@@ -108,17 +93,16 @@ def main():
         st.subheader("Live Model Confidence (All Gases):")
         st.write("") # Add spacing
         
-        # Filter chart data based on toggles
-        if not st.session_state.chart_data.empty and visible_gases:
-            chart_ph = st.line_chart(st.session_state.chart_data[visible_gases], height=400)
-        else:
-            # Show empty chart if no toggles are on
-            chart_ph = st.line_chart(pd.DataFrame(columns=CLASS_LABELS.values()), height=400)
+        # --- NEW: Bar chart placeholder ---
+        # This will be updated on every step, not accumulated
+        chart_placeholder = st.empty()
+        # Initialize with an empty chart
+        chart_placeholder.bar_chart(pd.DataFrame({'Gas': CLASS_LABELS.values(), 'Confidence': [0]*6}), x='Gas', y='Confidence')
             
     with col2:
         st.subheader("Prediction Log 📜")
         st.write("") # Add spacing
-        log_container = st.container(height=400)
+        log_container = st.container(height=450) # Made slightly taller
         for msg_type, msg_text in st.session_state.prediction_log:
             if msg_type == 'error':
                 log_container.error(msg_text)
@@ -127,7 +111,7 @@ def main():
 
     # --- Simulation Logic Function ---
     def advance_simulation():
-        window_size = config['feature_engineering']['window_size']
+        window_size = config['data']['window_size'] # Will read '50'
         current_idx = st.session_state.sim_index
         
         if current_idx < len(sim_df) - window_size:
@@ -140,16 +124,17 @@ def main():
             pred_res = CLASS_LABELS.get(pred_cls, "Unknown")
             true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown")
             
+            # 1. Create Log Message
             msg_text = f"[t={current_idx}] PREDICTED: {pred_res} | ACTUAL: {true_res} (Conf: {conf*100:.1f}%)"
             msg_type = "info" if pred_res == true_res else "error"
             st.session_state.prediction_log.insert(0, (msg_type, msg_text))
             
-            # Update Chart (row must have all columns, filtering happens at display time)
-            new_prob_row = pd.DataFrame([all_probs], columns=CLASS_LABELS.values())
-            # Use the filtered list for add_rows
-            if visible_gases:
-                chart_ph.add_rows(new_prob_row[visible_gases])
-            st.session_state.chart_data = pd.concat([st.session_state.chart_data, new_prob_row], ignore_index=True)
+            # 2. Update Bar Chart
+            prob_df = pd.DataFrame({
+                'Gas': CLASS_LABELS.values(),
+                'Confidence': all_probs
+            })
+            chart_placeholder.bar_chart(prob_df, x='Gas', y='Confidence')
             
             st.session_state.sim_index += 1
             return True
@@ -159,7 +144,7 @@ def main():
             return False
 
     # --- Controls ---
-    st.markdown("---") # Extra spacer for Req 5
+    st.markdown("---") # Extra spacer
     c1, c2, c3, c4 = st.columns(4)
     with c1:
         if st.button("▶ Next Step", use_container_width=True):
@@ -171,14 +156,12 @@ def main():
     with c3:
         if st.button("🔄 Reset (t=0)", use_container_width=True):
             st.session_state.sim_index = 0
-            st.session_state.chart_data = pd.DataFrame(columns=CLASS_LABELS.values())
-            st.session_state.prediction_log = []
             st.session_state.auto_play = False
+            st.session_state.prediction_log = []
             st.rerun()
     with c4:
         if st.button("⏩ Jump to t=300", use_container_width=True, type="primary"):
              st.session_state.sim_index = 300
-             st.session_state.chart_data = pd.DataFrame(columns=CLASS_LABELS.values())
              st.session_state.prediction_log = []
              st.rerun()
 
