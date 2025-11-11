@@ -1,4 +1,4 @@
-# app.py (V5: Final Path Fix + Shuffle + Real Names)
+# app.py (V6: Final Path Fix + Shuffle + Real Names)
 
 import streamlit as st
 import pandas as pd
@@ -37,16 +37,15 @@ if 'prediction_log' not in st.session_state:
     st.session_state.prediction_log = []
 
 # --- Caching Functions ---
+# (FIX: Ensure this function has NO indentation)
 @st.cache_resource
 def load_model_and_scaler():
     try:
         config = load_config()
         
-        # --- (PATH FIX V6) ---
-        # Load from 'models/' directory, not 'artifacts/'
+        # Load from 'models/' directory
         scaler_path = PROJECT_ROOT / 'models' / 'scaler.pkl'
         model_path = PROJECT_ROOT / 'models' / 'champion_model.joblib'
-        # --- (END PATH FIX V6) ---
         
         scaler = joblib.load(scaler_path)
         model = joblib.load(model_path)
@@ -56,8 +55,9 @@ def load_model_and_scaler():
         st.error(f"Attempted paths: {scaler_path} and {model_path}")
         return None, None, None
 
+# (FIX: Ensure this function has NO indentation)
 @st.cache_data
-def load_simulation_data(): # <-- (FIX V6: Removed bad parameter)
+def load_simulation_data():
     try:
         config = load_config()
         df = pd.read_csv(config['paths']['processed_data'])
@@ -72,7 +72,7 @@ def load_simulation_data(): # <-- (FIX V6: Removed bad parameter)
         st.error(f"Error loading data: {e}")
         return pd.DataFrame()
 
-# --- Inference Helper (Returns ALL probabilities) ---
+# (FIX: Ensure this function has NO indentation)
 def run_inference(window_data, scaler, model):
     scaled_window = window_data # Data is already scaled
     features = np.concatenate([
@@ -94,7 +94,7 @@ def main():
     st.title("Gas Detection Dashboard 🚨 (Final: Shuffled Simulation)")
     
     model, scaler, config = load_model_and_scaler()
-    sim_df = load_simulation_data() # <-- (FIX V6: Call without parameter)
+    sim_df = load_simulation_data() 
 
     if sim_df.empty or model is None:
         st.error("Critical resources failed to load. App cannot start.")
@@ -129,7 +129,6 @@ def main():
 
     # --- Simulation Logic Function ---
     def advance_simulation():
-        # (FIX V6: Read the correct window_size path)
         window_size = config['feature_engineering']['window_size']
         current_idx = st.session_state.sim_index
         
@@ -177,7 +176,7 @@ def main():
             st.session_state.sim_index = 0
             st.session_state.auto_play = False
             st.session_state.prediction_log = []
-            st.rerun()
+            st.rerun() 
     with c4:
         if st.button("⏩ Jump to t=300", use_container_width=True, type="primary"):
              st.session_state.sim_index = 300
