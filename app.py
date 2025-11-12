@@ -35,7 +35,7 @@ if 'prediction_log' not in st.session_state:
     st.session_state.prediction_log = []
 
 # --- Caching Functions ---
- @st.cache_resource
+@st.cache_resource
 def load_model_and_scaler():
     try:
         config = load_config()
@@ -52,7 +52,7 @@ def load_model_and_scaler():
         st.error(f"Attempted paths: {scaler_path} and {model_path}")
         return None, None, None
 
- @st.cache_data
+@st.cache_data
 def load_simulation_data():
     try:
         config = load_config()
