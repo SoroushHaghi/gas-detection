@@ -34,7 +34,7 @@ def create_statistical_features(data, labels, window_size):
     
     for i in range(len(data_np) - window_size):
         window = data_np[i : i + window_size]
-        label = labels_np[i + window_size]
+        label = labels_np[i + window_size - 1]
         
         # Calculate features: mean, std, min, max for each sensor
         features = np.concatenate([
