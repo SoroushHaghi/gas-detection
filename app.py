@@ -134,7 +134,7 @@ def main():
             pred_cls, conf, all_probs = run_inference(feats, scaler, model)
             
             pred_res = CLASS_LABELS.get(pred_cls, "Unknown")
-            true_res = CLASS_LABELS.get(true_label_val - 1, "Unknown")
+            true_res = CLASS_LABELS.get(true_label_val, "Unknown")
             
             # 1. Create Log Message
             msg_text = f"[t={current_idx}] PREDICTED: {pred_res} | ACTUAL: {true_res} (Conf: {conf*100:.1f}%)"
